@@ -1,2 +1,213 @@
-# agentforge
-⚡ AgentForge — A stunning Python toolkit for building autonomous AI agents that plan, use tools, and remember. Production-ready patterns for the agentic era.
+# ⚡ AgentForge
+
+> **Build autonomous AI agents that plan, use tools, and remember.**
+> A tiny, dependency-free Python toolkit for the agentic era.
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Status](https://img.shields.io/badge/status-active-success.svg)](#)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
+[![GitHub stars](https://img.shields.io/github/stars/shubhranillayek/agentforge?style=social)](https://github.com/shubhranillayek/agentforge/stargazers)
+[![Made with Python](https://img.shields.io/badge/made%20with-Python-3776AB.svg)](https://www.python.org/)
+
+Define tools with plain type hints, point them at any LLM, and let your agent
+**think → act → observe** in a loop until the job is done. No framework lock-in,
+no heavy dependencies — just a ~200-line core you can read in one sitting.
+
+`git clone https://github.com/shubhranillayek/agentforge.git`  ·  [Quick Start](#-quick-start)  ·  [Examples](#-examples)  ·  [Architecture](./docs/architecture.md)
+
+---
+
+## 🌟 Why AgentForge?
+
+Most agent frameworks are heavy, opinionated, and lock you into one provider. AgentForge is the opposite:
+
+- **🪶 Tiny core.** The whole agent loop is ~200 lines. Read it, hack it, ship it. No magic.
+- **🔌 Provider-agnostic.** Bring your own LLM client — Anthropic, OpenAI, Ollama, anything that speaks `(messages, tools) -> str`.
+- **🧰 Tools from type hints.** The `@tool` decorator infers the JSON schema your model needs. Zero boilerplate.
+- **🧠 Built-in memory.** A bounded conversation buffer keeps the thread so your agent never loses context.
+- **🧪 Hackable by design.** An `Agent` is a dataclass with one method. Subclass it, extend it, ship it.
+
+> Think of it as the "hello world" of agentic systems — clear enough to learn from, solid enough to build on.
+
+## 🚀 Quick Start
+
+```bash
+git clone https://github.com/shubhranillayek/agentforge.git
+cd agentforge
+pip install -e .
+```
+
+```python
+from agentforge import Agent, AgentConfig, tool, ToolRegistry
+
+@tool(description="Add two numbers together.")
+def add(a: int, b: int) -> int:
+    return a + b
+
+agent = Agent(
+    name="mathie",
+    llm=my_llm_client,                 # any callable: (messages, tools) -> str
+    tools=ToolRegistry(add),
+    config=AgentConfig(max_steps=6),
+)
+
+print(agent.run("What is 7 plus 5?"))  # -> "7 plus 5 is 12."
+```
+
+That is the whole API. `@tool` builds the schema, `Agent` runs the loop, and `my_llm_client` is *your* function — no SDK forced on you.
+
+## 🧰 Defining Tools
+
+Type hints become the tool's schema automatically:
+
+```python
+@tool(description="Search the web and return the top results.")
+def web_search(query: str, max_results: int = 3) -> list[dict]:
+    return call_your_search_api(query, max_results)
+
+@tool(description="Fetch the text content of a URL.")
+def fetch_page(url: str) -> str:
+    return requests.get(url).text
+```
+
+The agent then sees:
+
+```json
+{
+  "name": "web_search",
+  "description": "Search the web and return the top results.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": { "type": "string" },
+      "max_results": { "type": "integer", "default": 3 }
+    },
+    "required": ["query"]
+  }
+}
+```
+
+## 🔌 Wiring Up an LLM
+
+An "LLM client" is just a callable with this signature:
+
+```python
+def my_llm_client(messages: list[dict], tools: list[dict]) -> str: ...
+```
+
+**Anthropic Claude**
+
+```python
+import anthropic
+client = anthropic.Anthropic()
+
+def claude(messages, tools):
+    resp = client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=1024,
+        system=messages[0]["content"],
+        messages=messages[1:],
+        tools=[{"name": t["name"], "description": t["description"],
+                "input_schema": t["input_schema"]} for t in tools],
+    )
+    return parse_response(resp)   # turn tool_use blocks into the JSON block the loop expects
+```
+
+**OpenAI**
+
+```python
+import openai
+client = openai.OpenAI()
+
+def gpt(messages, tools):
+    resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=messages,
+        functions=[{"name": t["name"], "description": t["description"],
+                    "parameters": t["input_schema"]} for t in tools],
+    )
+    return resp.choices[0].message.content
+```
+
+## 📦 Examples
+
+| Example | What it shows |
+| --- | --- |
+| [`examples/research_agent.py`](./examples/research_agent.py) | A web research loop: search → fetch → summarise |
+| [`examples/autonomous_coder.py`](./examples/autonomous_coder.py) | A coding agent with filesystem tools |
+
+Both ship with a deterministic stub LLM, so they run with **no API keys**:
+
+```bash
+python examples/research_agent.py
+python examples/autonomous_coder.py
+```
+
+## 🏗️ How It Works
+
+```
+                            run(task)
+                               |
+                               v
+        +--------+    +----------+    +----------+    +---------+
+        | THINK  |--->|   ACT    |--->| OBSERVE  |--->|  DONE?  |
+        | (LLM)  |    |  (tool)  |    | (result) |    |         |
+        +--------+    +----------+    +----------+    +---------+
+            ^                                              |
+            +------------------- memory -------------------+
+                               (no -> loop)
+```
+
+The agent emits a JSON action block `{"tool": "...", "args": {...}}` to call a tool, or plain text when it has the final answer. Every step is recorded in memory, so the model always has full context.
+
+## 📁 Project Structure
+
+```
+agentforge/
+├── agentforge/
+│   ├── __init__.py      # public API
+│   ├── core.py          # the Agent loop
+│   ├── tools.py         # @tool decorator + schema inference
+│   └── memory.py        # bounded conversation buffer
+├── examples/
+│   ├── research_agent.py
+│   └── autonomous_coder.py
+├── docs/
+│   └── architecture.md
+├── .github/
+│   └── ISSUE_TEMPLATE/
+├── pyproject.toml
+└── README.md
+```
+
+## 🗺️ Roadmap
+
+- [x] Core agent loop (think → act → observe)
+- [x] Type-hint-driven tool schemas
+- [x] Bounded conversation memory
+- [ ] Streaming responses
+- [ ] Structured output validation (Pydantic)
+- [ ] Multi-agent orchestration
+- [ ] Built-in tracing and evals
+
+## 🤝 Contributing
+
+Contributions are welcome! See [`CONTRIBUTING.md`](./CONTRIBUTING.md) to get started.
+
+```bash
+git clone https://github.com/shubhranillayek/agentforge.git
+cd agentforge
+pip install -e ".[dev]"
+pytest
+```
+
+## ⭐ Show Your Support
+
+If AgentForge helped you build something, give it a star — it helps the next contributor find it.
+
+[![Star History Chart](https://api.star-history.com/svg?repos=shubhranillayek/agentforge&type=Date)](https://star-history.com/#shubhranillayek/agentforge&Date)
+
+## 📄 License
+
+[MIT](./LICENSE) © Shubhranil Layek
