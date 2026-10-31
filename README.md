@@ -1,7 +1,8 @@
-# ⚡ AgentForge
+# AgentForge — Lightweight Python AI Agent Toolkit
 
-> **Build autonomous AI agents that plan, use tools, and remember.**
-> A tiny, dependency-free Python toolkit for the agentic era.
+AgentForge is an MIT-licensed Python 3.10+ toolkit by [Shubhranil Layek](https://github.com/shubhranillayek) for building tool-using agents. It provides a configurable think → act → observe loop, type-hint-based tool schemas and bounded in-memory conversation history. The core has no required third-party runtime dependencies.
+
+**Status:** version 0.1.0, alpha. You supply the LLM adapter; this is not a hosted model or a guarantee of production readiness.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
@@ -12,7 +13,7 @@
 
 Define tools with plain type hints, point them at any LLM, and let your agent
 **think → act → observe** in a loop until the job is done. No framework lock-in,
-no heavy dependencies — just a ~200-line core you can read in one sitting.
+no heavy dependencies — a small core you can inspect and extend.
 
 `git clone https://github.com/shubhranillayek/agentforge.git`  ·  [Quick Start](#-quick-start)  ·  [Examples](#-examples)  ·  [Architecture](./docs/architecture.md)
 
@@ -22,10 +23,10 @@ no heavy dependencies — just a ~200-line core you can read in one sitting.
 
 Most agent frameworks are heavy, opinionated, and lock you into one provider. AgentForge is the opposite:
 
-- **🪶 Tiny core.** The whole agent loop is ~200 lines. Read it, hack it, ship it. No magic.
+- **🪶 Tiny core.** The agent loop is small and explicit. Inspect [`agentforge/core.py`](./agentforge/core.py).
 - **🔌 Provider-agnostic.** Bring your own LLM client — Anthropic, OpenAI, Ollama, anything that speaks `(messages, tools) -> str`.
 - **🧰 Tools from type hints.** The `@tool` decorator infers the JSON schema your model needs. Zero boilerplate.
-- **🧠 Built-in memory.** A bounded conversation buffer keeps the thread so your agent never loses context.
+- **🧠 Built-in memory.** A bounded conversation buffer retains recent messages. Older messages are dropped when its capacity is reached.
 - **🧪 Hackable by design.** An `Agent` is a dataclass with one method. Subclass it, extend it, ship it.
 
 > Think of it as the "hello world" of agentic systems — clear enough to learn from, solid enough to build on.
@@ -37,6 +38,8 @@ git clone https://github.com/shubhranillayek/agentforge.git
 cd agentforge
 pip install -e .
 ```
+
+**Adapter required:** define `my_llm_client` using the adapter contract below before running this snippet. It is not a built-in client.
 
 ```python
 from agentforge import Agent, AgentConfig, tool, ToolRegistry
@@ -90,45 +93,27 @@ The agent then sees:
 
 ## 🔌 Wiring Up an LLM
 
-An "LLM client" is just a callable with this signature:
+An LLM adapter is a callable with this signature:
 
 ```python
-def my_llm_client(messages: list[dict], tools: list[dict]) -> str: ...
+def my_llm_client(messages: list[dict], tools: list[dict]) -> str:
+    ...
 ```
 
-**Anthropic Claude**
+The adapter receives the retained conversation messages and tool schemas. It must return either:
 
-```python
-import anthropic
-client = anthropic.Anthropic()
+- A fenced JSON action block containing `tool` and `args`, to request a registered tool; or
+- Plain text, to finish the task.
 
-def claude(messages, tools):
-    resp = client.messages.create(
-        model="claude-sonnet-5",
-        max_tokens=1024,
-        system=messages[0]["content"],
-        messages=messages[1:],
-        tools=[{"name": t["name"], "description": t["description"],
-                "input_schema": t["input_schema"]} for t in tools],
-    )
-    return parse_response(resp)   # turn tool_use blocks into the JSON block the loop expects
+For example, an action response is:
+
+````text
+```json
+{"tool": "add", "args": {"a": 7, "b": 5}}
 ```
+````
 
-**OpenAI**
-
-```python
-import openai
-client = openai.OpenAI()
-
-def gpt(messages, tools):
-    resp = client.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
-        functions=[{"name": t["name"], "description": t["description"],
-                    "parameters": t["input_schema"]} for t in tools],
-    )
-    return resp.choices[0].message.content
-```
+Provider SDK responses and native tool-call formats must be translated into this contract by your adapter. Optional SDK dependencies in `pyproject.toml` do not provide a complete integration by themselves. Review [`agentforge/core.py`](./agentforge/core.py) for parsing and execution behavior.
 
 ## 📦 Examples
 
@@ -159,7 +144,7 @@ python examples/autonomous_coder.py
                                (no -> loop)
 ```
 
-The agent emits a JSON action block `{"tool": "...", "args": {...}}` to call a tool, or plain text when it has the final answer. Every step is recorded in memory, so the model always has full context.
+The agent emits a JSON action block `{"tool": "...", "args": {...}}` to call a tool, or plain text when it has the final answer. Steps are recorded in a bounded in-memory buffer, so the model receives the retained conversation history rather than unlimited or persistent memory.
 
 ## 📁 Project Structure
 
@@ -190,6 +175,24 @@ agentforge/
 - [ ] Structured output validation (Pydantic)
 - [ ] Multi-agent orchestration
 - [ ] Built-in tracing and evals
+
+## Frequently asked questions
+
+### What is this AgentForge project?
+
+This is Shubhranil Layek's Python toolkit at [`shubhranillayek/agentforge`](https://github.com/shubhranillayek/agentforge). It implements a configurable agent loop, registered tools and bounded conversation history.
+
+### Is AgentForge production-ready?
+
+The package metadata classifies version 0.1.0 as alpha. Evaluate adapters, error handling, tool permissions and testing for your use case before a production deployment. Streaming, multi-agent orchestration and built-in tracing remain roadmap items.
+
+### Does the core require an API key?
+
+The core itself does not. A real model-backed adapter may require provider credentials, an SDK and usage fees, depending on the service you choose.
+
+### Is conversation memory persistent?
+
+No. The built-in conversation buffer is bounded and in memory. It retains recent messages, drops older messages at capacity and does not provide persistence across process restarts.
 
 ## 🤝 Contributing
 
