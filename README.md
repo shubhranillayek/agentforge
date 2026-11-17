@@ -119,12 +119,27 @@ For example, an action response is:
 
 Provider SDK responses and native tool-call formats must be translated into this contract by your adapter. Optional SDK dependencies in `pyproject.toml` do not provide a complete integration by themselves. Review [`agentforge/core.py`](./agentforge/core.py) for parsing and execution behavior.
 
+## Google Workspace (via MCP)
+
+An agent can also use tools from an MCP server. The bridge in [`agentforge/mcp.py`](./agentforge/mcp.py) starts a server over stdio (standard library only), lists its tools, and wraps them as normal AgentForge tools:
+
+```python
+from agentforge.mcp import MCPClient, mcp_registry
+
+with MCPClient(["uvx", "workspace-mcp"]) as client:
+    agent = Agent(name="google", llm=my_llm_client, tools=mcp_registry(client))
+    print(agent.run("What is on my calendar today?"))
+```
+
+Pointed at a Google Workspace MCP server, that gives the agent your Google Calendar, Drive and Docs. [`examples/google_workspace_agent.py`](./examples/google_workspace_agent.py) is a ready example, and [docs/google-workspace.md](./docs/google-workspace.md) walks through the setup - Google Cloud project, APIs, OAuth client, and sign-in. Your Google sign-in and tokens stay with the MCP server on your machine; AgentForge never stores them.
+
 ## 📦 Examples
 
 | Example | What it shows |
 | --- | --- |
 | [`examples/research_agent.py`](./examples/research_agent.py) | A web research loop: search → fetch → summarise |
 | [`examples/autonomous_coder.py`](./examples/autonomous_coder.py) | A coding agent with filesystem tools |
+| [`examples/google_workspace_agent.py`](./examples/google_workspace_agent.py) | Google Calendar, Drive and Docs through an MCP server (setup in [docs/google-workspace.md](./docs/google-workspace.md)) |
 
 One thing to know about `autonomous_coder.py`: its filesystem tools have no path restrictions, so they can read or write anything the process can reach. That is fine with the stub, but with a real model only run it in a folder you are happy for it to change.
 
@@ -160,12 +175,14 @@ agentforge/
 │   ├── __init__.py      # public API
 │   ├── core.py          # the Agent loop
 │   ├── tools.py         # @tool decorator + schema inference
-│   └── memory.py        # bounded conversation buffer
+│   ├── memory.py        # bounded conversation buffer
+│   └── mcp.py           # MCP bridge: use tools from any MCP server
 ├── examples/
 │   ├── research_agent.py
 │   └── autonomous_coder.py
 ├── tests/
 │   ├── test_agent.py
+│   ├── test_mcp.py
 │   ├── test_memory.py
 │   └── test_tools.py
 ├── docs/
