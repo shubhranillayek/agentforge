@@ -3,13 +3,18 @@
 Runs with a stub LLM, so no API keys are needed::
 
     python examples/autonomous_coder.py
+
+Warning: the filesystem tools in this example have no path restrictions.
+They can read or write any file the process can reach. Only point this at
+a real model inside a folder you are happy for it to change, ideally a
+throwaway copy of a project - not your home directory.
 """
 from __future__ import annotations
 
 import os
 from typing import Any
 
-from agentforge import Agent, AgentConfig, tool, ToolRegistry
+from agentforge import Agent, AgentConfig, ToolRegistry, tool
 
 
 @tool(description="Read a file from disk and return its contents.")

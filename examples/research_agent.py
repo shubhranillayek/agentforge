@@ -9,7 +9,7 @@ from __future__ import annotations
 import textwrap
 from typing import Any
 
-from agentforge import Agent, AgentConfig, tool, ToolRegistry
+from agentforge import Agent, AgentConfig, ToolRegistry, tool
 
 
 # --- Demo tools (swap for real implementations) ----------------------------
