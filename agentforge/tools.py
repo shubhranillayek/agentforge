@@ -122,6 +122,10 @@ class Tool:
     description: str
     func: Callable[..., Any]
     parameters: dict[str, Any] = field(default_factory=dict)
+    # Set this when the required list comes from somewhere else, for
+    # example an MCP server's inputSchema. None means "work it out from
+    # the parameters", which is what @tool-defined tools use.
+    required: list[str] | None = None
 
     def run(self, **kwargs: Any) -> str:
         result = self.func(**kwargs)
@@ -131,17 +135,21 @@ class Tool:
 
     @property
     def schema(self) -> dict[str, Any]:
+        if self.required is not None:
+            required = list(self.required)
+        else:
+            required = [
+                name
+                for name, spec in self.parameters.items()
+                if "default" not in spec and not spec.get("nullable")
+            ]
         return {
             "name": self.name,
             "description": self.description,
             "input_schema": {
                 "type": "object",
                 "properties": self.parameters,
-                "required": [
-                    name
-                    for name, spec in self.parameters.items()
-                    if "default" not in spec and not spec.get("nullable")
-                ],
+                "required": required,
             },
         }
 
