@@ -36,6 +36,8 @@ Most agent frameworks are heavy, opinionated, and lock you into one provider. Ag
 ```bash
 git clone https://github.com/shubhranillayek/agentforge.git
 cd agentforge
+python -m venv .venv
+source .venv/bin/activate   # on Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
@@ -102,8 +104,10 @@ def my_llm_client(messages: list[dict], tools: list[dict]) -> str:
 
 The adapter receives the retained conversation messages and tool schemas. It must return either:
 
-- A fenced JSON action block containing `tool` and `args`, to request a registered tool; or
+- A fenced JSON action block containing `tool` and `args`, to request a registered tool (a bare JSON object with a `tool` key, without the fence, is also accepted); or
 - Plain text, to finish the task.
+
+If the adapter itself raises, `run()` does not crash - it returns a string starting with `Error: LLM call failed:`. Invalid JSON in an action block is fed back to the model as an error so it can try again, rather than being shown to the user as the answer.
 
 For example, an action response is:
 
@@ -121,6 +125,8 @@ Provider SDK responses and native tool-call formats must be translated into this
 | --- | --- |
 | [`examples/research_agent.py`](./examples/research_agent.py) | A web research loop: search → fetch → summarise |
 | [`examples/autonomous_coder.py`](./examples/autonomous_coder.py) | A coding agent with filesystem tools |
+
+One thing to know about `autonomous_coder.py`: its filesystem tools have no path restrictions, so they can read or write anything the process can reach. That is fine with the stub, but with a real model only run it in a folder you are happy for it to change.
 
 Both ship with a deterministic stub LLM, so they run with **no API keys**:
 
@@ -158,9 +164,14 @@ agentforge/
 ├── examples/
 │   ├── research_agent.py
 │   └── autonomous_coder.py
+├── tests/
+│   ├── test_agent.py
+│   ├── test_memory.py
+│   └── test_tools.py
 ├── docs/
 │   └── architecture.md
 ├── .github/
+│   ├── workflows/       # CI: pytest + ruff on Python 3.10-3.12
 │   └── ISSUE_TEMPLATE/
 ├── pyproject.toml
 └── README.md
@@ -192,7 +203,7 @@ The core itself does not. A real model-backed adapter may require provider crede
 
 ### Is conversation memory persistent?
 
-No. The built-in conversation buffer is bounded and in memory. It retains recent messages, drops older messages at capacity and does not provide persistence across process restarts.
+Not across restarts, but it is kept between `run()` calls on the same agent, so a second call carries on from the earlier conversation. Call `agent.reset()` if you want a clean start. The built-in conversation buffer is bounded and in memory - it retains recent messages and drops older messages at capacity.
 
 ## 🤝 Contributing
 
@@ -201,6 +212,8 @@ Contributions are welcome! See [`CONTRIBUTING.md`](./CONTRIBUTING.md) to get sta
 ```bash
 git clone https://github.com/shubhranillayek/agentforge.git
 cd agentforge
+python -m venv .venv
+source .venv/bin/activate   # on Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 pytest
 ```
