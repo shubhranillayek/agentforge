@@ -4,6 +4,8 @@ AgentForge is an MIT-licensed Python 3.10+ toolkit by [Shubhranil Layek](https:/
 
 **Status:** version 0.1.0, alpha. You supply the LLM adapter; this is not a hosted model or a guarantee of production readiness.
 
+Built by [Shubhranil Layek](https://shubhranillayek.github.io/) — Python developer working on Telegram bots, automation and AI agents.
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Status](https://img.shields.io/badge/status-active-success.svg)](#)
